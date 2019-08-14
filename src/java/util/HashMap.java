@@ -1,28 +1,3 @@
-/*
- * Copyright (c) 1997, 2017, Oracle and/or its affiliates. All rights reserved.
- * ORACLE PROPRIETARY/CONFIDENTIAL. Use is subject to license terms.
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- */
-
 package java.util;
 
 import java.io.IOException;
@@ -334,8 +309,19 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      * to incorporate impact of the highest bits that would otherwise
      * never be used in index calculations because of table bounds.
      */
+    /**
+     * JDK8 的默认hashCode的计算方法是通过和当前线程有关的一个随机数+三个确定值，运用Marsaglia's xorshift scheme随机数算法得到的一个随机数。
+     * 对xorshift算法有兴趣可以参考原论文：https://www.jstatsoft.org/article/view/v008i14/xorshift.pdf
+     * xorshift是由George Marsaglia发现的一类伪随机数生成器，其通过移位和与或计算，能够在计算机上以极快的速度生成伪随机数序列。其算法的基本实现如下：
+     * unsigned long xor128(){
+     * static unsigned long x=123456789,y=362436069,z=521288629,w=88675123;
+     * unsigned long t;
+     * t=(xˆ(x<<11));x=y;y=z;z=w; return( w=(wˆ(w>>19))ˆ(tˆ(t>>8)) );
+     *
+     */
     static final int hash(Object key) {
         int h;
+        //获取key的hash值，将key的hashcode高16位全部置为0
         return (key == null) ? 0 : (h = key.hashCode()) ^ (h >>> 16);
     }
 
@@ -345,7 +331,10 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      */
     static Class<?> comparableClassFor(Object x) {
         if (x instanceof Comparable) {
-            Class<?> c; Type[] ts, as; Type t; ParameterizedType p;
+            Class<?> c;
+            Type[] ts, as;
+            Type t;
+            ParameterizedType p;
             if ((c = x.getClass()) == String.class) // bypass checks
                 return c;
             if ((ts = c.getGenericInterfaces()) != null) {
@@ -373,7 +362,9 @@ public class HashMap<K,V> extends AbstractMap<K,V>
     }
 
     /**
-     * Returns a power of two size for the given target capacity.
+     * 大于输入参数且最近的2的整数次幂的数
+     * 对n不断的移位 + 位或 保证第一个不为1的最高位后面全为1
+     * 如输入10 返回16
      */
     static final int tableSizeFor(int cap) {
         int n = cap - 1;
@@ -498,17 +489,24 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      * true (relayed to method afterNodeInsertion).
      */
     final void putMapEntries(Map<? extends K, ? extends V> m, boolean evict) {
+        //eg: m.size()=21
         int s = m.size();
         if (s > 0) {
             if (table == null) { // pre-size
+                // +1 防止四舍五入, ft = 21/0.75 + 1 = 29;
                 float ft = ((float)s / loadFactor) + 1.0F;
+                // t = 29
                 int t = ((ft < (float)MAXIMUM_CAPACITY) ?
                          (int)ft : MAXIMUM_CAPACITY);
                 if (t > threshold)
+                    // threshold为29最近的2次幂，32
                     threshold = tableSizeFor(t);
             }
+            // 加入原hm为默认参数构造，那么threshod = 12
             else if (s > threshold)
+                //进行扩容
                 resize();
+            //填充
             for (Map.Entry<? extends K, ? extends V> e : m.entrySet()) {
                 K key = e.getKey();
                 V value = e.getValue();
@@ -565,9 +563,11 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      * @return the node, or null if none
      */
     final Node<K,V> getNode(int hash, Object key) {
-        Node<K,V>[] tab; Node<K,V> first, e; int n; K k;
-        if ((tab = table) != null && (n = tab.length) > 0 &&
-            (first = tab[(n - 1) & hash]) != null) {
+        Node<K,V>[] tab;
+        Node<K,V> first, e;
+        int n;
+        K k;
+        if ((tab = table) != null && (n = tab.length) > 0 && (first = tab[(n - 1) & hash]) != null) {
             if (first.hash == hash && // always check first node
                 ((k = first.key) == key || (key != null && key.equals(k))))
                 return first;
@@ -624,7 +624,9 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      */
     final V putVal(int hash, K key, V value, boolean onlyIfAbsent,
                    boolean evict) {
-        Node<K,V>[] tab; Node<K,V> p; int n, i;
+        Node<K,V>[] tab;
+        Node<K,V> p;
+        int n, i;
         if ((tab = table) == null || (n = tab.length) == 0)
             n = (tab = resize()).length;
         if ((p = tab[i = (n - 1) & hash]) == null)
@@ -674,6 +676,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      *
      * @return the table
      */
+    // resize每次以2的幂扩展，移动后的key要么仍然在同一个index，要么偏移一个2个幂的偏移量
     final Node<K,V>[] resize() {
         Node<K,V>[] oldTab = table;
         int oldCap = (oldTab == null) ? 0 : oldTab.length;
@@ -686,7 +689,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
             }
             else if ((newCap = oldCap << 1) < MAXIMUM_CAPACITY &&
                      oldCap >= DEFAULT_INITIAL_CAPACITY)
-                newThr = oldThr << 1; // double threshold
+                newThr = oldThr << 1; // table本身扩容为2
         }
         else if (oldThr > 0) // initial capacity was placed in threshold
             newCap = oldThr;
