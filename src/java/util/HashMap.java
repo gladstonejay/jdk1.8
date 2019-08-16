@@ -810,6 +810,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
         else if ((e = tab[index = (n - 1) & hash]) != null) {
             TreeNode<K,V> hd = null, tl = null;
             do {
+                //放置新的树节点
                 TreeNode<K,V> p = replacementTreeNode(e, null);
                 if (tl == null)
                     hd = p;
@@ -819,6 +820,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
                 }
                 tl = p;
             } while ((e = e.next) != null);
+            //建树
             if ((tab[index] = hd) != null)
                 hd.treeify(tab);
         }
@@ -863,13 +865,19 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      */
     final Node<K,V> removeNode(int hash, Object key, Object value,
                                boolean matchValue, boolean movable) {
-        Node<K,V>[] tab; Node<K,V> p; int n, index;
+        Node<K,V>[] tab;
+        Node<K,V> p;
+        int n, index;
         if ((tab = table) != null && (n = tab.length) > 0 &&
             (p = tab[index = (n - 1) & hash]) != null) {
-            Node<K,V> node = null, e; K k; V v;
+            Node<K,V> node = null, e;
+            K k;
+            V v;
+            //桶内首节点
             if (p.hash == hash &&
                 ((k = p.key) == key || (key != null && key.equals(k))))
                 node = p;
+            //非桶内首节点
             else if ((e = p.next) != null) {
                 if (p instanceof TreeNode)
                     node = ((TreeNode<K,V>)p).getTreeNode(hash, key);
@@ -885,12 +893,16 @@ public class HashMap<K,V> extends AbstractMap<K,V>
                     } while ((e = e.next) != null);
                 }
             }
+            //获取到指定node
             if (node != null && (!matchValue || (v = node.value) == value ||
                                  (value != null && value.equals(v)))) {
+                //树删除
                 if (node instanceof TreeNode)
                     ((TreeNode<K,V>)node).removeTreeNode(this, tab, movable);
+                //首节点
                 else if (node == p)
-                    tab[index] = node.next;
+                    tab[index] = node.next;//空
+                //非首节点
                 else
                     p.next = node.next;
                 ++modCount;
