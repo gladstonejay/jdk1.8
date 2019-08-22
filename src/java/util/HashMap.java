@@ -687,6 +687,9 @@ public class HashMap<K,V> extends AbstractMap<K,V>
                 V oldValue = e.value;
                 if (!onlyIfAbsent || oldValue == null)
                     e.value = value;
+                /**
+                 * 回调函数，需要在lhm中进行覆盖，访问的K-V放在tail位置
+                 */
                 afterNodeAccess(e);
                 return oldValue;
             }
@@ -695,6 +698,9 @@ public class HashMap<K,V> extends AbstractMap<K,V>
         ++modCount;
         if (++size > threshold)
             resize();
+        /**
+         * 回调函数，需要在lmp覆盖，是否需要删除head节点
+         */
         afterNodeInsertion(evict);
         return null;
     }

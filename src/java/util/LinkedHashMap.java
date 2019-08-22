@@ -190,6 +190,9 @@ public class LinkedHashMap<K,V>
      * HashMap.Node subclass for normal LinkedHashMap entries.
      */
     static class Entry<K,V> extends HashMap.Node<K,V> {
+        /**
+         * 封装了前驱与后继节点
+         */
         Entry<K,V> before, after;
         Entry(int hash, K key, V value, Node<K,V> next) {
             super(hash, key, value, next);
@@ -213,6 +216,7 @@ public class LinkedHashMap<K,V>
      * for access-order, <tt>false</tt> for insertion-order.
      *
      * @serial
+     * 是否以访问次序进行排序
      */
     final boolean accessOrder;
 
@@ -225,6 +229,10 @@ public class LinkedHashMap<K,V>
         if (last == null)
             head = p;
         else {
+            /**
+             *  p.after不应该连接head吗？不需要
+             *  这是双向链表，不是循环链表
+             */
             p.before = last;
             last.after = p;
         }
@@ -276,14 +284,22 @@ public class LinkedHashMap<K,V>
     TreeNode<K,V> replacementTreeNode(Node<K,V> p, Node<K,V> next) {
         LinkedHashMap.Entry<K,V> q = (LinkedHashMap.Entry<K,V>)p;
         TreeNode<K,V> t = new TreeNode<K,V>(q.hash, q.key, q.value, next);
+        /**
+         * 替换节点
+         */
         transferLinks(q, t);
         return t;
     }
 
+
     void afterNodeRemoval(Node<K,V> e) { // unlink
         LinkedHashMap.Entry<K,V> p =
             (LinkedHashMap.Entry<K,V>)e, b = p.before, a = p.after;
+        // GC clear
         p.before = p.after = null;
+        /**
+         * 将节点e移除双向链表
+         */
         if (b == null)
             head = a;
         else
@@ -293,6 +309,7 @@ public class LinkedHashMap<K,V>
         else
             a.before = b;
     }
+
 
     void afterNodeInsertion(boolean evict) { // possibly remove eldest
         LinkedHashMap.Entry<K,V> first;
@@ -308,14 +325,23 @@ public class LinkedHashMap<K,V>
             LinkedHashMap.Entry<K,V> p =
                 (LinkedHashMap.Entry<K,V>)e, b = p.before, a = p.after;
             p.after = null;
+            /**
+             * 判断p的前驱是否空，为空说明P是head
+             */
             if (b == null)
                 head = a;
             else
                 b.after = a;
+            /**
+             * 判断p的后继是否为空，为空说明p是tail
+             */
             if (a != null)
                 a.before = b;
             else
                 last = b;
+            /**
+             * 判断last是否为空，如果为空说明空数组，走不到。
+             */
             if (last == null)
                 head = p;
             else {
@@ -437,8 +463,10 @@ public class LinkedHashMap<K,V>
      */
     public V get(Object key) {
         Node<K,V> e;
+        // hashmap中的实现，即判断桶的首节点，然后判断是否是数节点，然后判断是否是Node节点
         if ((e = getNode(hash(key), key)) == null)
             return null;
+        // 如果是访问顺序排序为真，需要把该K-V放在tai中
         if (accessOrder)
             afterNodeAccess(e);
         return e.value;
@@ -471,6 +499,7 @@ public class LinkedHashMap<K,V>
      * with the opportunity to remove the eldest entry each time a new one
      * is added.  This is useful if the map represents a cache: it allows
      * the map to reduce memory consumption by deleting stale entries.
+     * 固定长度的链表，适用于多种场景，如线程池，缓存
      *
      * <p>Sample use: this override will allow the map to grow up to 100
      * entries and then delete the eldest entry each time a new entry is
