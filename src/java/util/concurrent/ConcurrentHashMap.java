@@ -568,23 +568,30 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
      * serves as a lower bound to avoid resizers encountering
      * excessive memory contention.  The value should be at least
      * DEFAULT_CAPACITY.
+     * 每个转移步骤的最少node数。
+     * 范围被细分以允许多个调整大小的线程。
+     * 此值用作下限，以避免调整大小器遇到过多的内存争用。
+     * 该值至少应该是DEFAULT_CAPACITY。
      */
     private static final int MIN_TRANSFER_STRIDE = 16;
 
     /**
      * The number of bits used for generation stamp in sizeCtl.
      * Must be at least 6 for 32bit arrays.
+     * 生成sizeCtl所使用的bit位数
      */
     private static int RESIZE_STAMP_BITS = 16;
 
     /**
      * The maximum number of threads that can help resize.
      * Must fit in 32 - RESIZE_STAMP_BITS bits.
+     * 转移时的最大线程
      */
     private static final int MAX_RESIZERS = (1 << (32 - RESIZE_STAMP_BITS)) - 1;
 
     /**
      * The bit shift for recording size stamp in sizeCtl.
+     * 记录sizeCtl中的大小所需要进行的偏移位数 合起来正好是32位
      */
     private static final int RESIZE_STAMP_SHIFT = 32 - RESIZE_STAMP_BITS;
 
@@ -638,7 +645,8 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
         }
 
         public final boolean equals(Object o) {
-            Object k, v, u; Map.Entry<?,?> e;
+            Object k, v, u;
+            Map.Entry<?,?> e;
             return ((o instanceof Map.Entry) &&
                     (k = (e = (Map.Entry<?,?>)o).getKey()) != null &&
                     (v = e.getValue()) != null &&
@@ -705,7 +713,10 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
      */
     static Class<?> comparableClassFor(Object x) {
         if (x instanceof Comparable) {
-            Class<?> c; Type[] ts, as; Type t; ParameterizedType p;
+            Class<?> c;
+            Type[] ts, as;
+            Type t;
+            ParameterizedType p;
             if ((c = x.getClass()) == String.class) // bypass checks
                 return c;
             if ((ts = c.getGenericInterfaces()) != null) {
@@ -932,7 +943,10 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
      * @throws NullPointerException if the specified key is null
      */
     public V get(Object key) {
-        Node<K,V>[] tab; Node<K,V> e, p; int n, eh; K ek;
+        Node<K,V>[] tab;
+        Node<K,V> e, p;
+        int n, eh;
+        K ek;
         int h = spread(key.hashCode());
         if ((tab = table) != null && (n = tab.length) > 0 &&
             (e = tabAt(tab, (n - 1) & h)) != null) {
@@ -1012,7 +1026,8 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
         int hash = spread(key.hashCode());
         int binCount = 0;
         for (Node<K,V>[] tab = table;;) {
-            Node<K,V> f; int n, i, fh;
+            Node<K,V> f;
+            int n, i, fh;
             if (tab == null || (n = tab.length) == 0)
                 tab = initTable();
             else if ((f = tabAt(tab, i = (n - 1) & hash)) == null) {
@@ -1105,7 +1120,8 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
     final V replaceNode(Object key, V value, Object cv) {
         int hash = spread(key.hashCode());
         for (Node<K,V>[] tab = table;;) {
-            Node<K,V> f; int n, i, fh;
+            Node<K,V> f;
+            int n, i, fh;
             if (tab == null || (n = tab.length) == 0 ||
                 (f = tabAt(tab, i = (n - 1) & hash)) == null)
                 break;
@@ -2295,7 +2311,8 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
      * Helps transfer if a resize is in progress.
      */
     final Node<K,V>[] helpTransfer(Node<K,V>[] tab, Node<K,V> f) {
-        Node<K,V>[] nextTab; int sc;
+        Node<K,V>[] nextTab;
+        int sc;
         if (tab != null && (f instanceof ForwardingNode) &&
             (nextTab = ((ForwardingNode<K,V>)f).nextTable) != null) {
             int rs = resizeStamp(tab.length);
