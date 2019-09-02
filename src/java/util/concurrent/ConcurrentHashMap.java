@@ -785,6 +785,7 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
 
     /**
      * The next table to use; non-null only while resizing.
+     * resize时使用的table
      */
     private transient volatile Node<K,V>[] nextTable;
 
@@ -792,6 +793,7 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
      * Base counter value, used mainly when there is no contention,
      * but also as a fallback during table initialization
      * races. Updated via CAS.
+     * 对比hashmap的modcount
      */
     private transient volatile long baseCount;
 
@@ -802,11 +804,16 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
      * when table is null, holds the initial table size to use upon
      * creation, or 0 for default. After initialization, holds the
      * next element count value upon which to resize the table.
+     * -1为初始化
+     * resizng： -N，表示n-1个线程正在进行扩容
+     * 当table为空时：0或者默认值
+     * 完成初始化时：表示下一次扩容大小
      */
     private transient volatile int sizeCtl;
 
     /**
      * The next table index (plus one) to split while resizing.
+     * 扩容时，新表的扩容index
      */
     private transient volatile int transferIndex;
 
@@ -817,6 +824,7 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
 
     /**
      * Table of counter cells. When non-null, size is a power of 2.
+     * 对baseCount的计数
      */
     private transient volatile CounterCell[] counterCells;
 
@@ -850,6 +858,7 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
         int cap = ((initialCapacity >= (MAXIMUM_CAPACITY >>> 1)) ?
                    MAXIMUM_CAPACITY :
                    tableSizeFor(initialCapacity + (initialCapacity >>> 1) + 1));
+        //下次扩容大小
         this.sizeCtl = cap;
     }
 
@@ -918,6 +927,7 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
      * {@inheritDoc}
      */
     public int size() {
+        //countcells的数组遍历，把每个元素相加
         long n = sumCount();
         return ((n < 0L) ? 0 :
                 (n > (long)Integer.MAX_VALUE) ? Integer.MAX_VALUE :
@@ -950,12 +960,15 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
         int h = spread(key.hashCode());
         if ((tab = table) != null && (n = tab.length) > 0 &&
             (e = tabAt(tab, (n - 1) & h)) != null) {
+            //某bucket头结点
             if ((eh = e.hash) == h) {
                 if ((ek = e.key) == key || (ek != null && key.equals(ek)))
                     return e.val;
             }
+            //so 当是0的时候 表示tree
             else if (eh < 0)
                 return (p = e.find(h, key)) != null ? p.val : null;
+            //链表
             while ((e = e.next) != null) {
                 if (e.hash == h &&
                     ((ek = e.key) == key || (ek != null && key.equals(ek))))
@@ -1035,6 +1048,7 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
                              new Node<K,V>(hash, key, value, null)))
                     break;                   // no lock when adding to empty bin
             }
+            //f是头结点
             else if ((fh = f.hash) == MOVED)
                 tab = helpTransfer(tab, f);
             else {
@@ -2270,7 +2284,8 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
      * @param check if <0, don't check resize, if <= 1 only check if uncontended
      */
     private final void addCount(long x, int check) {
-        CounterCell[] as; long b, s;
+        CounterCell[] as;
+        long b, s;
         if ((as = counterCells) != null ||
             !U.compareAndSwapLong(this, BASECOUNT, b = baseCount, s = b + x)) {
             CounterCell a; long v; int m;
@@ -2321,6 +2336,7 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
                 if ((sc >>> RESIZE_STAMP_SHIFT) != rs || sc == rs + 1 ||
                     sc == rs + MAX_RESIZERS || transferIndex <= 0)
                     break;
+                //sc + 1 少一个线程进行resize
                 if (U.compareAndSwapInt(this, SIZECTL, sc, sc + 1)) {
                     transfer(tab, nextTab);
                     break;
@@ -2382,13 +2398,14 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
      * above for explanation.
      */
     private final void transfer(Node<K,V>[] tab, Node<K,V>[] nextTab) {
-        int n = tab.length, stride;
+        int n = tab.length;
+        int stride;
         if ((stride = (NCPU > 1) ? (n >>> 3) / NCPU : n) < MIN_TRANSFER_STRIDE)
             stride = MIN_TRANSFER_STRIDE; // subdivide range
         if (nextTab == null) {            // initiating
             try {
                 @SuppressWarnings("unchecked")
-                Node<K,V>[] nt = (Node<K,V>[])new Node<?,?>[n << 1];
+                Node<K,V>[] nt = (Node<K,V>[])new Node<?,?>[n << 1];//先扩容2倍
                 nextTab = nt;
             } catch (Throwable ex) {      // try to cope with OOME
                 sizeCtl = Integer.MAX_VALUE;
@@ -2398,15 +2415,19 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
             transferIndex = n;
         }
         int nextn = nextTab.length;
+        //创建「先行」node
         ForwardingNode<K,V> fwd = new ForwardingNode<K,V>(nextTab);
         boolean advance = true;
         boolean finishing = false; // to ensure sweep before committing nextTab
         for (int i = 0, bound = 0;;) {
-            Node<K,V> f; int fh;
+            Node<K,V> f;
+            int fh;
             while (advance) {
                 int nextIndex, nextBound;
+                // finishing标志位为true
                 if (--i >= bound || finishing)
                     advance = false;
+                // 或者resizing时index == 0 说明resize完成
                 else if ((nextIndex = transferIndex) <= 0) {
                     i = -1;
                     advance = false;
@@ -2444,6 +2465,7 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
                     if (tabAt(tab, i) == f) {
                         Node<K,V> ln, hn;
                         if (fh >= 0) {
+                            //相当于与新table长度进行取模
                             int runBit = fh & n;
                             Node<K,V> lastRun = f;
                             for (Node<K,V> p = f.next; p != null; p = p.next) {
