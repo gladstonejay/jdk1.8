@@ -234,7 +234,7 @@ public class ConcurrentLinkedQueue<E> extends AbstractQueue<E>
      *   to not be reachable from head!
      */
     private transient volatile Node<E> head;
-
+    
     /**
      * A node from which the last node on list (that is, the unique
      * node with node.next == null) can be reached in O(1) time.
@@ -322,21 +322,39 @@ public class ConcurrentLinkedQueue<E> extends AbstractQueue<E>
      *
      * @return {@code true} (as specified by {@link Queue#offer})
      * @throws NullPointerException if the specified element is null
+     *
+     * 插入方法
      */
     public boolean offer(E e) {
+        /**
+         * 如果为空则抛异常
+         */
         checkNotNull(e);
-        final Node<E> newNode = new Node<E>(e);
-
+        final Node<E> newNode = new Node<E>(e);//初始化成一个节点
+        /**
+         * tail不一定指向对象真正的尾节点，
+         * 因为在ConcurrentLinkedQueue中tail是被延迟更新的
+         * 在concurrent相关的设计中，经常会出现这样的设计，即两个变量递进指向某一个成员变量
+         */
         for (Node<E> t = tail, p = t;;) {
             Node<E> q = p.next;
             if (q == null) {
                 // p is last node
+                /**
+                 * casNext的这个这个操作直接更新了的volatile变量
+                 */
                 if (p.casNext(null, newNode)) {
                     // Successful CAS is the linearization point
                     // for e to become an element of this queue,
                     // and for newNode to become "live".
-                    if (p != t) // hop two nodes at a time
-                        casTail(t, newNode);  // Failure is OK.
+                    /**
+                     * point2
+                     * 这里如何才能不等？ 单线程的情况下一定是相等的
+                     * 只有当p先被指向尾结点的时候 t才被慢慢更新为尾结点
+                     */
+                    if (p != t) {// hop two nodes at a time
+                        casTail(t, newNode);
+                    }// Failure is OK.
                     return true;
                 }
                 // Lost CAS race to another thread; re-read next
@@ -348,7 +366,13 @@ public class ConcurrentLinkedQueue<E> extends AbstractQueue<E>
                 // reachable.  Else the new tail is a better bet.
                 p = (t != (t = tail)) ? t : head;
             else
-                // Check for tail updates after two hops.
+            /**
+             * point 1：
+             * p被认为队列真正的尾节点，为什么？
+             * 当走入这个分支时，一定是因为q！=null，那么说明p指向的tail已经不是尾结点了
+             * 这里将p向前推进到q，再次进入循环，p已经指向了尾结点，而t仍然原地踏步，指向tail
+             */
+            // Check for tail updates after two hops.
                 p = (p != t && t != (t = tail)) ? t : q;
         }
     }
@@ -362,7 +386,13 @@ public class ConcurrentLinkedQueue<E> extends AbstractQueue<E>
                 if (item != null && p.casItem(item, null)) {
                     // Successful CAS is the linearization point
                     // for item to be removed from this queue.
+                    /**
+                     * 说明p已经移动 而h还没有移动
+                     */
                     if (p != h) // hop two nodes at a time
+                    /**
+                     * casNext的这个这个操作直接更新了的volatile变量
+                     */
                         updateHead(h, ((q = p.next) != null) ? q : p);
                     return item;
                 }
@@ -372,6 +402,9 @@ public class ConcurrentLinkedQueue<E> extends AbstractQueue<E>
                 }
                 else if (p == q)
                     continue restartFromHead;
+                /**
+                 * 走到这：说明需要调整头指针的位置
+                 */
                 else
                     p = q;
             }
@@ -465,6 +498,7 @@ public class ConcurrentLinkedQueue<E> extends AbstractQueue<E>
      */
     public boolean contains(Object o) {
         if (o == null) return false;
+
         for (Node<E> p = first(); p != null; p = succ(p)) {
             E item = p.item;
             if (item != null && o.equals(item))
