@@ -90,9 +90,14 @@ public class ArrayBlockingQueue<E> extends AbstractQueue<E>
      */
     private static final long serialVersionUID = -817911632652898426L;
 
-    /** The queued items */
+    /** The queued items
+     * 底层数据结构为数组
+     */
     final Object[] items;
 
+    /**
+     * 下标putIndex/takeIndex，构成一个环形FIFO队列
+     */
     /** items index for next take, poll, peek or remove */
     int takeIndex;
 
@@ -107,6 +112,11 @@ public class ArrayBlockingQueue<E> extends AbstractQueue<E>
      * found in any textbook.
      */
 
+    /**
+     * 1获取lock锁，
+     * 2进入和取出还要满足condition 满了或者空了都等待出队和加入唤醒，
+     * ArrayBlockingQueue我们主要是put和take真正用到的阻塞方法（条件不满足）。
+     */
     /** Main lock guarding all access */
     final ReentrantLock lock;
 
@@ -155,13 +165,20 @@ public class ArrayBlockingQueue<E> extends AbstractQueue<E>
      * Call only when holding lock.
      */
     private void enqueue(E x) {
-        // assert lock.getHoldCount() == 1;
-        // assert items[putIndex] == null;
+        /**
+         * 该方法必须在拿到锁时才可以使用
+         */
         final Object[] items = this.items;
         items[putIndex] = x;
+        /**
+         * 这里可以看到 putIndex在装满时 为0（初始化时也为0）
+         */
         if (++putIndex == items.length)
             putIndex = 0;
         count++;
+        /**
+         * 唤醒消费者进行 可以继续消费
+         */
         notEmpty.signal();
     }
 
@@ -170,17 +187,24 @@ public class ArrayBlockingQueue<E> extends AbstractQueue<E>
      * Call only when holding lock.
      */
     private E dequeue() {
-        // assert lock.getHoldCount() == 1;
-        // assert items[takeIndex] != null;
+        /**
+         * 与入队一致，锁止资源进入临界区
+         */
         final Object[] items = this.items;
         @SuppressWarnings("unchecked")
         E x = (E) items[takeIndex];
         items[takeIndex] = null;
+        /**
+         * 如果弹出到边界，那么takeIndex也设置为0
+         */
         if (++takeIndex == items.length)
             takeIndex = 0;
         count--;
         if (itrs != null)
             itrs.elementDequeued();
+        /**
+         * 告知生产者 可以继续生产
+         */
         notFull.signal();
         return x;
     }
@@ -191,9 +215,6 @@ public class ArrayBlockingQueue<E> extends AbstractQueue<E>
      * Call only when holding lock.
      */
     void removeAt(final int removeIndex) {
-        // assert lock.getHoldCount() == 1;
-        // assert items[removeIndex] != null;
-        // assert removeIndex >= 0 && removeIndex < items.length;
         final Object[] items = this.items;
         if (removeIndex == takeIndex) {
             // removing front item; just advance
@@ -210,8 +231,16 @@ public class ArrayBlockingQueue<E> extends AbstractQueue<E>
             final int putIndex = this.putIndex;
             for (int i = removeIndex;;) {
                 int next = i + 1;
+                /**
+                 * 说明next已经越界
+                 */
                 if (next == items.length)
                     next = 0;
+                /**
+                 * 只要不是队尾，就把下一位往前移动，
+                 * 进行循环，注意for条件里的无限循环，
+                 * 跳出循环的唯一条件是找到队尾
+                 */
                 if (next != putIndex) {
                     items[i] = items[next];
                     i = next;
@@ -225,6 +254,9 @@ public class ArrayBlockingQueue<E> extends AbstractQueue<E>
             if (itrs != null)
                 itrs.removedAt(removeIndex);
         }
+        /**
+         * 唤醒生产者线程
+         */
         notFull.signal();
     }
 
@@ -278,6 +310,13 @@ public class ArrayBlockingQueue<E> extends AbstractQueue<E>
                               Collection<? extends E> c) {
         this(capacity, fair);
 
+        /**
+         * 这种做法的好处是什么呢？
+         * 它做了自己必须要做的事(finally)，并向外抛出自己无法处理的异常；
+         * 对于调用者来说，能够感知出现的异常，并可以按照需要进行处理。
+         * 也就是说这种结构实现了职责的分离，实现了异常处理(throw)与异常清理(finally)的解耦，
+         * 让不同的方法专注于自己应该做的事。
+         */
         final ReentrantLock lock = this.lock;
         lock.lock(); // Lock only for visibility, not mutual exclusion
         try {
@@ -326,6 +365,9 @@ public class ArrayBlockingQueue<E> extends AbstractQueue<E>
         final ReentrantLock lock = this.lock;
         lock.lock();
         try {
+            /**
+             * 满了就不插入
+             */
             if (count == items.length)
                 return false;
             else {
@@ -347,10 +389,14 @@ public class ArrayBlockingQueue<E> extends AbstractQueue<E>
     public void put(E e) throws InterruptedException {
         checkNotNull(e);
         final ReentrantLock lock = this.lock;
+        /**
+         * todo 留到分析ReentrantLock
+         */
         lock.lockInterruptibly();
         try {
-            while (count == items.length)
+            while (count == items.length) {
                 notFull.await();
+            }
             enqueue(e);
         } finally {
             lock.unlock();
@@ -371,6 +417,11 @@ public class ArrayBlockingQueue<E> extends AbstractQueue<E>
         checkNotNull(e);
         long nanos = unit.toNanos(timeout);
         final ReentrantLock lock = this.lock;
+        /**
+         * 超时类的操作都是配合
+         * 1 lockInterruptibly
+         * 2 awaitNanos（Time）
+         */
         lock.lockInterruptibly();
         try {
             while (count == items.length) {
