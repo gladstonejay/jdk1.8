@@ -124,9 +124,9 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
 
         /**
          * One of:
-         * - the real successor Node
-         * - this Node, meaning the successor is head.next
-         * - null, meaning there is no successor (this is the last node)
+         * - the real successor Node 下一节点
+         * - this Node, meaning the successor is head.next  头节点的下一节点
+         * - null, meaning there is no successor (this is the last node) 为空 说明是尾节点
          */
         Node<E> next;
 
@@ -137,28 +137,35 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
     private final int capacity;
 
     /** Current number of elements */
+    /**
+     * atomic计数 保证原子性
+     */
     private final AtomicInteger count = new AtomicInteger();
 
     /**
      * Head of linked list.
-     * Invariant: head.item == null
+     * Invariant: head.item == null 头结点的值为空
+     *
+     * 注意不是 volatile
      */
     transient Node<E> head;
 
     /**
      * Tail of linked list.
-     * Invariant: last.next == null
+     * Invariant: last.next == null  尾结点的NEXT为空
+     *
+     * 注意不是 volatile
      */
     private transient Node<E> last;
 
     /** Lock held by take, poll, etc */
-    private final ReentrantLock takeLock = new ReentrantLock();
+    private final ReentrantLock takeLock = new ReentrantLock(); //分段锁
 
     /** Wait queue for waiting takes */
     private final Condition notEmpty = takeLock.newCondition();
 
     /** Lock held by put, offer, etc */
-    private final ReentrantLock putLock = new ReentrantLock();
+    private final ReentrantLock putLock = new ReentrantLock();  //分段锁
 
     /** Wait queue for waiting puts */
     private final Condition notFull = putLock.newCondition();
@@ -196,8 +203,7 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
      * @param node the node
      */
     private void enqueue(Node<E> node) {
-        // assert putLock.isHeldByCurrentThread();
-        // assert last.next == null;
+        //将入队节点连接在队尾，然后队尾指向入队元素
         last = last.next = node;
     }
 
@@ -207,8 +213,9 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
      * @return the node
      */
     private E dequeue() {
-        // assert takeLock.isHeldByCurrentThread();
-        // assert head.item == null;
+        /**
+         * 先将head指向自己 再把first节点当成head节点，域置为null
+         */
         Node<E> h = head;
         Node<E> first = h.next;
         h.next = h; // help GC
@@ -247,6 +254,9 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
      * {@link Integer#MAX_VALUE}.
      */
     public LinkedBlockingQueue() {
+        /**
+         * 默认为最大值
+         */
         this(Integer.MAX_VALUE);
     }
 
@@ -276,6 +286,9 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
     public LinkedBlockingQueue(Collection<? extends E> c) {
         this(Integer.MAX_VALUE);
         final ReentrantLock putLock = this.putLock;
+        /**
+         * 仅有put操作 所以仅需要put上锁
+         */
         putLock.lock(); // Never contended, but necessary for visibility
         try {
             int n = 0;
@@ -330,32 +343,27 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
      */
     public void put(E e) throws InterruptedException {
         if (e == null) throw new NullPointerException();
-        // Note: convention in all put/take/etc is to preset local var
-        // holding count negative to indicate failure unless set.
         int c = -1;
         Node<E> node = new Node<E>(e);
         final ReentrantLock putLock = this.putLock;
         final AtomicInteger count = this.count;
         putLock.lockInterruptibly();
         try {
-            /*
-             * Note that count is used in wait guard even though it is
-             * not protected by lock. This works because count can
-             * only decrease at this point (all other puts are shut
-             * out by lock), and we (or some other waiting put) are
-             * signalled if it ever changes from capacity. Similarly
-             * for all other uses of count in other wait guards.
+            /**
+             * 队列满 则阻塞线程
              */
             while (count.get() == capacity) {
                 notFull.await();
             }
             enqueue(node);
+            //如果入队后队列未满，则唤醒入队的线程
             c = count.getAndIncrement();
             if (c + 1 < capacity)
                 notFull.signal();
         } finally {
             putLock.unlock();
         }
+        //唤醒要出队的线程
         if (c == 0)
             signalNotEmpty();
     }
@@ -436,6 +444,7 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
         int c = -1;
         final AtomicInteger count = this.count;
         final ReentrantLock takeLock = this.takeLock;
+        //可响应中断的获取锁
         takeLock.lockInterruptibly();
         try {
             while (count.get() == 0) {
