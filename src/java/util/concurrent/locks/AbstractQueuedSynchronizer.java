@@ -386,13 +386,16 @@ public abstract class AbstractQueuedSynchronizer
         /** waitStatus value to indicate thread has cancelled */
         static final int CANCELLED =  1; // 结点已被取消,表示线程放弃抢锁,结点状态以后不再变直到GC回收它
         /** waitStatus value to indicate successor's thread needs unparking */
-        static final int SIGNAL    = -1; //结点的后继已经或很快就阻塞,在结点释放锁或被取消时要唤醒其后面第1个非CANCELLED结点
+        static final int SIGNAL    = -1; //结点的后继已经或很快就阻塞,在结点释放锁或被取消时要唤醒其后面第1个非CANCELLED结点;表示线程已经准备好要获取锁
+
         /** waitStatus value to indicate thread is waiting on condition */
+        //  表示线程等待某一个条件被满足，此时线程保存在条件等待队列上
         static final int CONDITION = -2; //当Condition的signal方法被调用, Condition队列中的结点被转移进CLH队列并且状态变为0
         /**
          * waitStatus value to indicate the next acquireShared should
          * unconditionally propagate
          */
+        //  共享模式下用于标记传播
         static final int PROPAGATE = -3; //与共享模式相关,当线程以共享模式去获取或释放锁时,对后续线程的释放动作需要不断往后传播
 
         /**
@@ -478,6 +481,7 @@ public abstract class AbstractQueuedSynchronizer
          * we save a field by using special value to indicate shared
          * mode.
          */
+        //  当前线程对应条件等待队列上节点的后继节点
         Node nextWaiter; // Condition队列中指向结点在队列中的后继;在CLH队列中共享模式下值取SHARED,独占模式下为null
 
         /**
@@ -781,9 +785,11 @@ public abstract class AbstractQueuedSynchronizer
         node.waitStatus = Node.CANCELLED;
 
         // If we are the tail, remove ourselves.
+        // 如果当前节点为尾节点 就把前驱变成尾结点 出队
         if (node == tail && compareAndSetTail(node, pred)) {
             compareAndSetNext(pred, predNext, null);
         } else {
+            // 如果当前节点不是尾节点则把前驱节点的后继节点由当前节点变成当前节点的后继节点 相当于把自己拆出去
             // If successor needs signal, try to set pred's next-link
             // so it will get one. Otherwise wake it up to propagate.
             int ws;
@@ -795,7 +801,7 @@ public abstract class AbstractQueuedSynchronizer
                 if (next != null && next.waitStatus <= 0)
                     compareAndSetNext(pred, predNext, next);
             } else {
-                //唤醒后继
+                //  如果当前节点前驱节点为头结点，唤醒后继节点（线程）
                 unparkSuccessor(node);
             }
 
@@ -890,7 +896,7 @@ public abstract class AbstractQueuedSynchronizer
             for (;;) {
                 //拿到节点的前驱
                 final Node p = node.predecessor();
-                //只有排在队列的第二位（因为第一位是哑结点）
+                //只有排在队列的第二位（因为第一个是head）
                 if (p == head && tryAcquire(arg)) {
                     //setHead说明head是个dummy节点
                     setHead(node);
