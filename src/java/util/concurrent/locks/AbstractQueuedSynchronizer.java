@@ -687,22 +687,18 @@ public abstract class AbstractQueuedSynchronizer
      * propagation. (Note: For exclusive mode, release just amounts
      * to calling unparkSuccessor of head if it needs signal.)
      */
+    // 唤醒非取消状态的非空的后继节点
     private void doReleaseShared() {
-        /*
-         * Ensure that a release propagates, even if there are other
-         * in-progress acquires/releases.  This proceeds in the usual
-         * way of trying to unparkSuccessor of head if it needs
-         * signal. But if it does not, status is set to PROPAGATE to
-         * ensure that upon release, propagation continues.
-         * Additionally, we must loop in case a new node is added
-         * while we are doing this. Also, unlike other uses of
-         * unparkSuccessor, we need to know if CAS to reset status
-         * fails, if so rechecking.
-         */
+
         for (;;) {
+            // 从头节点开始，如果队列为空或者只有一个节点，就不需要处理
             Node h = head;  //记录下当前的head
+            // 头结点之后还有其他有效节点时
             if (h != null && h != tail) {
                 int ws = h.waitStatus;
+                // h 节点的等待状态为 SIGNAL 时，修改等待状态为 0，
+                // CAS 失败时就继续循环，重新检查
+                // 修改成功时，unpark 后继节点
                 if (ws == Node.SIGNAL) { //如果head的waitStatus为SIGNAL,一定是它的后继设的,共享模式下要唤醒它的后继
                     if (!compareAndSetWaitStatus(h, Node.SIGNAL, 0)) //先将head的waitStatus设置为0,成功后唤醒其后继
                         continue;            // loop to recheck cases
@@ -1019,13 +1015,18 @@ public abstract class AbstractQueuedSynchronizer
      * Acquires in shared interruptible mode.
      * @param arg the acquire argument
      */
-    private void doAcquireSharedInterruptibly(int arg)
-        throws InterruptedException {
+    // 在可中断的共享模式下的获取
+    private void doAcquireSharedInterruptibly(int arg) throws InterruptedException {
+        // 用当前线程创建一个共享节点并加入等待队列
         final Node node = addWaiter(Node.SHARED);
         boolean failed = true;
         try {
             for (;;) {
+                // node 节点的前一个节点
                 final Node p = node.predecessor();
+                // 前一个节点为头结点时，说明 node 节点在等待队列的最前方
+                // (等待队列的头结点是一个 waitStatus == 0 的默认节点)
+                // 再次尝试获取同步器，成功的话就...
                 if (p == head) {
                     int r = tryAcquireShared(arg);
                     if (r >= 0) {
@@ -1035,6 +1036,8 @@ public abstract class AbstractQueuedSynchronizer
                         return;
                     }
                 }
+                // 节点 node 可以 park 时，就 park node 中的线程
+                // 最后检查线程的中断状态
                 if (shouldParkAfterFailedAcquire(p, node) &&
                     parkAndCheckInterrupt())
                     throw new InterruptedException();
@@ -1722,6 +1725,7 @@ public abstract class AbstractQueuedSynchronizer
         /*
          * If cannot change waitStatus, the node has been cancelled.
          */
+        //将该节点ws 设置为0 进入等待队列新增节点都为0 然后才会把前驱设置为-1
         if (!compareAndSetWaitStatus(node, Node.CONDITION, 0))
             return false;
 
@@ -1932,11 +1936,16 @@ public abstract class AbstractQueuedSynchronizer
          * @param first (non-null) the first node on condition queue
          */
         private void doSignalAll(Node first) {
+            // condition队列的头结点尾结点都设置为空
             lastWaiter = firstWaiter = null;
             do {
+                // 获取first结点的nextWaiter域结点
                 Node next = first.nextWaiter;
+                // 设置first结点的nextWaiter域为空
                 first.nextWaiter = null;
+                // 将first结点从condition队列转移到sync队列
                 transferForSignal(first);
+                // 向右移动队首
                 first = next;
             } while (first != null);
         }
@@ -2001,8 +2010,10 @@ public abstract class AbstractQueuedSynchronizer
          *         returns {@code false}
          */
         public final void signalAll() {
+            // 不被当前线程独占，抛出异常
             if (!isHeldExclusively())
                 throw new IllegalMonitorStateException();
+            // 保存condition队列头结点
             Node first = firstWaiter;
             if (first != null)
                 doSignalAll(first);

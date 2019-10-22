@@ -153,14 +153,19 @@ public class CyclicBarrier {
     }
 
     /** The lock for guarding barrier entry */
+    // 可重入锁
     private final ReentrantLock lock = new ReentrantLock();
     /** Condition to wait on until tripped */
+    // 条件队列
     private final Condition trip = lock.newCondition();
     /** The number of parties */
+    // 参与的线程数量
     private final int parties;
     /* The command to run when tripped */
+    // 由最后一个进入 barrier 的线程执行的操作
     private final Runnable barrierCommand;
     /** The current generation */
+    // 当前代
     private Generation generation = new Generation();
 
     /**
@@ -168,6 +173,7 @@ public class CyclicBarrier {
      * on each generation.  It is reset to parties on each new
      * generation or when broken.
      */
+    // 正在等待进入屏障的线程数量，在每一个新生代或者broken的时候被重置为parties
     private int count;
 
     /**
@@ -195,34 +201,42 @@ public class CyclicBarrier {
     /**
      * Main barrier code, covering the various policies.
      */
-    private int dowait(boolean timed, long nanos)
-        throws InterruptedException, BrokenBarrierException,
-               TimeoutException {
+    private int dowait(boolean timed, long nanos) throws InterruptedException, BrokenBarrierException, TimeoutException {
+
+        // 保存当前锁
         final ReentrantLock lock = this.lock;
         lock.lock();
         try {
+            // 保存当前代
             final Generation g = generation;
 
-            if (g.broken)
+            if (g.broken) // 屏障被破坏，抛出异常
                 throw new BrokenBarrierException();
 
+            //如果线程被中断，那么所有条件等待队列中的线程都进入等待队列
             if (Thread.interrupted()) {
                 breakBarrier();
                 throw new InterruptedException();
             }
 
+            // 减少正在等待进入屏障的线程数量
             int index = --count;
-            if (index == 0) {  // tripped
+            if (index == 0) {  // 正在等待进入屏障的线程数量为0，所有线程都已经进入
+                // 运行的动作标识
                 boolean ranAction = false;
                 try {
+                    // 保存运行动作
                     final Runnable command = barrierCommand;
                     if (command != null)
                         command.run();
+                    // 设置ranAction状态
                     ranAction = true;
+                    // 进入下一代
                     nextGeneration();
                     return 0;
                 } finally {
-                    if (!ranAction)
+                    if (!ranAction) // 没有运行的动作
+                        // 损坏当前屏障
                         breakBarrier();
                 }
             }
@@ -235,13 +249,15 @@ public class CyclicBarrier {
                     else if (nanos > 0L)
                         nanos = trip.awaitNanos(nanos);
                 } catch (InterruptedException ie) {
-                    if (g == generation && ! g.broken) {
+                    if (g == generation && ! g.broken) { // 等于当前代并且屏障没有被损坏
+                        // 损坏当前屏障
                         breakBarrier();
                         throw ie;
-                    } else {
+                    } else { // 不等于当前带后者是屏障被损坏
                         // We're about to finish waiting even if we had not
                         // been interrupted, so this interrupt is deemed to
                         // "belong" to subsequent execution.
+                        // 中断当前线程
                         Thread.currentThread().interrupt();
                     }
                 }
