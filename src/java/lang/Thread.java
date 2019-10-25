@@ -137,8 +137,7 @@ import sun.security.util.SecurityConstants;
  * @see     #stop()
  * @since   JDK1.0
  */
-public
-class Thread implements Runnable {
+public class Thread implements Runnable {
     /* Make sure registerNatives is the first thing <clinit> does. */
     private static native void registerNatives();
     static {
@@ -151,13 +150,14 @@ class Thread implements Runnable {
     private long           eetop;
 
     /* Whether or not to single_step this thread. */
+    //是否单步执行
     private boolean     single_step;
 
     /* Whether or not the thread is a daemon thread. */
     private boolean     daemon = false;
 
     /* JVM state */
-    private boolean     stillborn = false;
+    private boolean     stillborn = false; //仍然存活
 
     /* What will be run. */
     private Runnable target;
@@ -192,12 +192,12 @@ class Thread implements Runnable {
      * not specify a stack size.  It is up to the VM to do whatever it
      * likes with this number; some VMs will ignore it.
      */
-    private long stackSize;
+    private long stackSize; //申请的栈大小
 
     /*
      * JVM-private state that persists after native thread termination.
      */
-    private long nativeParkEventPointer;
+    private long nativeParkEventPointer; //本地阻塞事件指针
 
     /*
      * Thread ID
@@ -210,8 +210,7 @@ class Thread implements Runnable {
     /* Java thread status for tools,
      * initialized to indicate thread 'not yet started'
      */
-
-    private volatile int threadStatus = 0;
+    private volatile int threadStatus = 0; //线程状态
 
 
     private static synchronized long nextThreadID() {
@@ -279,6 +278,7 @@ class Thread implements Runnable {
      * concurrency control constructs such as the ones in the
      * {@link java.util.concurrent.locks} package.
      */
+    //线程让出当前调度 主动让步 和release属于执行完的被动让步
     public static native void yield();
 
     /**
@@ -286,6 +286,8 @@ class Thread implements Runnable {
      * execution) for the specified number of milliseconds, subject to
      * the precision and accuracy of system timers and schedulers. The thread
      * does not lose ownership of any monitors.
+     *
+     * 最重要的点：线程本身并没有让出调度器的占用
      *
      * @param  millis
      *         the length of time to sleep in milliseconds
@@ -405,8 +407,8 @@ class Thread implements Runnable {
         g.addUnstarted();
 
         this.group = g;
-        this.daemon = parent.isDaemon();
-        this.priority = parent.getPriority();
+        this.daemon = parent.isDaemon(); //判断父线程是否是守护线程
+        this.priority = parent.getPriority(); //优先级继承
         if (security == null || isCCLOverridden(parent.getClass()))
             this.contextClassLoader = parent.getContextClassLoader();
         else
@@ -416,6 +418,7 @@ class Thread implements Runnable {
         this.target = target;
         setPriority(priority);
         if (inheritThreadLocals && parent.inheritableThreadLocals != null)
+            // 设置子线程的继承信息，给孙子线程（新创建的）使用
             this.inheritableThreadLocals =
                 ThreadLocal.createInheritedMap(parent.inheritableThreadLocals);
         /* Stash the specified stack size in case the VM cares */
