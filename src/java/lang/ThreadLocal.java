@@ -82,6 +82,11 @@ public class ThreadLocal<T> {
      * are used by the same threads, while remaining well-behaved in
      * less common cases.
      */
+    /**
+     * ThreadLocal的静态内部类ThreadLocalMap为每个Thread都维护了一个数组table，
+     * ThreadLocal确定了一个数组下标，
+     * 而这个下标就是value存储的对应位置
+     */
     private final int threadLocalHashCode = nextHashCode();
 
     /**
@@ -197,8 +202,11 @@ public class ThreadLocal<T> {
      *        this thread-local.
      */
     public void set(T value) {
+        //获取当前线程
         Thread t = Thread.currentThread();
+        //实际存储的数据结构类型
         ThreadLocalMap map = getMap(t);
+        //如果存在map就直接set，没有则创建map并set
         if (map != null)
             map.set(this, value);
         else
@@ -230,6 +238,7 @@ public class ThreadLocal<T> {
      * @return the map
      */
     ThreadLocalMap getMap(Thread t) {
+        //thred中维护了一个ThreadLocalMap
         return t.threadLocals;
     }
 
@@ -241,6 +250,7 @@ public class ThreadLocal<T> {
      * @param firstValue value for the initial entry of the map
      */
     void createMap(Thread t, T firstValue) {
+        //实例化一个新的ThreadLocalMap，并赋值给线程的成员变量threadLocals
         t.threadLocals = new ThreadLocalMap(this, firstValue);
     }
 
@@ -305,6 +315,10 @@ public class ThreadLocal<T> {
          * entry can be expunged from table.  Such entries are referred to
          * as "stale entries" in the code that follows.
          */
+        /**
+         * //Entry为ThreadLocalMap静态内部类，对ThreadLocal的若引用
+         * //同时让ThreadLocal和储值形成key-value的关系
+         */
         static class Entry extends WeakReference<ThreadLocal<?>> {
             /** The value associated with this ThreadLocal. */
             Object value;
@@ -362,8 +376,13 @@ public class ThreadLocal<T> {
          * ThreadLocalMaps are constructed lazily, so we only create
          * one when we have at least one entry to put in it.
          */
+        //ThreadLocalMap构造方法
         ThreadLocalMap(ThreadLocal<?> firstKey, Object firstValue) {
+            //内部成员数组，INITIAL_CAPACITY值为16的常量
             table = new Entry[INITIAL_CAPACITY];
+            /**
+             * 与hashmap的套路一致
+             */
             int i = firstKey.threadLocalHashCode & (INITIAL_CAPACITY - 1);
             table[i] = new Entry(firstKey, firstValue);
             size = 1;
@@ -460,8 +479,12 @@ public class ThreadLocal<T> {
 
             Entry[] tab = table;
             int len = tab.length;
+            /**
+             * hashMap的套路
+             */
             int i = key.threadLocalHashCode & (len-1);
 
+            //遍历tab如果已经存在则更新值
             for (Entry e = tab[i];
                  e != null;
                  e = tab[i = nextIndex(i, len)]) {
@@ -478,8 +501,10 @@ public class ThreadLocal<T> {
                 }
             }
 
+            //如果上面没有遍历成功则创建新值
             tab[i] = new Entry(key, value);
             int sz = ++size;
+            //满足条件数组扩容x2
             if (!cleanSomeSlots(i, sz) && sz >= threshold)
                 rehash();
         }
