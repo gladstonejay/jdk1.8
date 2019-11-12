@@ -496,6 +496,7 @@ public class ScheduledThreadPoolExecutor
     /**
      * Returns the trigger time of a delayed action.
      */
+    //触发时间计算
     long triggerTime(long delay) {
         return now() +
             ((delay < (Long.MAX_VALUE >> 1)) ? delay : overflowFree(delay));
@@ -1020,6 +1021,9 @@ public class ScheduledThreadPoolExecutor
                     siftUp(i, e);
                 }
                 if (queue[0] == e) {
+                    //为什么新任务被至于堆顶时需要唤醒Worker呢，
+                    // 因为这就意味着之前堆为空或最近需要执行任务的时间已经改变，
+                    // 需要重新调整leader的睡眠时间。
                     leader = null;
                     available.signal();
                 }
@@ -1077,19 +1081,23 @@ public class ScheduledThreadPoolExecutor
             try {
                 for (;;) {
                     RunnableScheduledFuture<?> first = queue[0];
+                    //堆为空
                     if (first == null)
                         available.await();
                     else {
                         long delay = first.getDelay(NANOSECONDS);
+                        //getDelay返回的是延时执行时间和当前时间的差，非正值说明此任务可以执行了
                         if (delay <= 0)
                             return finishPoll(first);
                         first = null; // don't retain ref while waiting
                         if (leader != null)
+                            //已存在leader，所以当前线程为follower，永久等待
                             available.await();
                         else {
                             Thread thisThread = Thread.currentThread();
                             leader = thisThread;
                             try {
+                                //当前线程成为leader，等待至下一次任务执行时间
                                 available.awaitNanos(delay);
                             } finally {
                                 if (leader == thisThread)
@@ -1100,6 +1108,7 @@ public class ScheduledThreadPoolExecutor
                 }
             } finally {
                 if (leader == null && queue[0] != null)
+                    //当前线程接下来要去执行定时任务逻辑，所以唤醒一个follower(如果有)，使之成为新的leader
                     available.signal();
                 lock.unlock();
             }
