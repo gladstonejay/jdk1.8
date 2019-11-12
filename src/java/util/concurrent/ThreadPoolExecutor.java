@@ -401,11 +401,14 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
 
     // runState is stored in the high-order bits
     //1110 0000 0000 0000 0000 0000 0000 0000
-    private static final int RUNNING    = -1 << COUNT_BITS; // 接受新任务并且处理已经进入阻塞队列的任务
+    // 接受新任务并且处理已经进入阻塞队列的任务
+    private static final int RUNNING    = -1 << COUNT_BITS;
     //0000 0000 0000 0000 0000 0000 0000 0000
-    private static final int SHUTDOWN   =  0 << COUNT_BITS; // 不接受新任务，但是处理已经进入阻塞队列的任务
+    // 不接受新任务，但是处理已经进入阻塞队列的任务
+    private static final int SHUTDOWN   =  0 << COUNT_BITS;
     //0010 0000 0000 0000 0000 0000 0000 0000
-    private static final int STOP       =  1 << COUNT_BITS; // 不接受新任务，不处理已经进入阻塞队列的任务并且中断正在运行的任务
+    // 不接受新任务，不处理已经进入阻塞队列的任务并且中断正在运行的任务
+    private static final int STOP       =  1 << COUNT_BITS;
     //0100 0000 0000 0000 0000 0000 0000 0000
     // 所有的任务都已经终止，workerCount为0， 线程转化为TIDYING状态并且调用terminated钩子函数
     private static final int TIDYING    =  2 << COUNT_BITS;
@@ -980,9 +983,9 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * @return true if successful
      */
     private boolean addWorker(Runnable firstTask, boolean core) {
-        // firstTask: 新增一个线程并执行这个任务，可空，增加的线程从队列获取任务；
-        // core：是否使用 corePoolSize 作为上限，否则使用 maxmunPoolSize
 
+        // firstTask: 新增一个线程并执行这个任务，可空，增加的线程从队列获取任务；
+        // core：是否使用 corePoolSize 作为上限，否则使用 maxPoolSize
         retry:
         for (;;) {
             int c = ctl.get();
